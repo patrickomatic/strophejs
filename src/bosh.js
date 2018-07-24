@@ -233,27 +233,33 @@ Strophe.Bosh.prototype = {
      *
      *  Creates and sends the Request that initializes the BOSH connection.
      */
-    _connect: function (wait, hold, route) {
+    _connect: function (wait, hold, route, customBody) {
         this.wait = wait || this.wait;
         this.hold = hold || this.hold;
         this.errors = 0;
 
-        // build the body tag
-        var body = this._buildBody().attrs({
-            to: this._conn.domain,
-            "xml:lang": "en",
-            wait: this.wait,
-            hold: this.hold,
-            content: "text/xml; charset=utf-8",
-            ver: "1.6",
-            "xmpp:version": "1.0",
-            "xmlns:xmpp": Strophe.NS.BOSH
-        });
+        var body;
+        if (customBody) {
+          body = customBody;
+          this.rid++;
+        } else {
+          // build the body tag
+          body = this._buildBody().attrs({
+              to: this._conn.domain,
+              "xml:lang": "en",
+              wait: this.wait,
+              hold: this.hold,
+              content: "text/xml; charset=utf-8",
+              ver: "1.6",
+              "xmpp:version": "1.0",
+              "xmlns:xmpp": Strophe.NS.BOSH
+          });
 
-        if(route){
-            body.attrs({
-                route: route
-            });
+          if(route){
+              body.attrs({
+                  route: route
+              });
+          }
         }
 
         var _connect_cb = this._conn._connect_cb;

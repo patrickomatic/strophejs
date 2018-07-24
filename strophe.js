@@ -1289,7 +1289,7 @@ function $pres(attrs) { return new Strophe.Builder("presence", attrs); }
  */
 Strophe = {
     /** Constant: VERSION */
-    VERSION: "1.2.15",
+    VERSION: "@VERSION@",
 
     /** Constants: XMPP Namespace Constants
      *  Common namespace constants from the XMPP RFCs and XEPs.
@@ -3051,6 +3051,26 @@ Strophe.Connection.prototype = {
         this._proto._connect(wait, hold, route);
     },
 
+    /**
+     * TODO document this
+     */
+    connectWithBody: function (body, options) {
+        if (!options) options = {};
+
+        this.connect_callback = options.callback;
+        this.disconnecting = false;
+        this.connected = false;
+        this.authenticated = false;
+        this.restored = false;
+
+        this.customSessionRequest = true;
+
+        this._changeConnectStatus(Strophe.Status.CONNECTING, null);
+
+        this._proto._connect(options.wait, options.hold, options.route, body);
+    },
+
+
     /** Function: attach
      *  Attach to an already created and authenticated BOSH session.
      *
@@ -3920,7 +3940,7 @@ Strophe.Connection.prototype = {
             hasFeatures = bodyWrap.getElementsByTagName("stream:features").length > 0 ||
                             bodyWrap.getElementsByTagName("features").length > 0;
         }
-        if (!hasFeatures) {
+        if (!hasFeatures && !this.customSessionRequest) {
             this._no_auth_received(_callback);
             return;
         }
@@ -3934,7 +3954,9 @@ Strophe.Connection.prototype = {
             }
         }
         if (matched.length === 0) {
-            if (bodyWrap.getElementsByTagName("auth").length === 0) {
+            if (this.customSessionRequest) {
+                this.do_authentication = false;
+            } else if (bodyWrap.getElementsByTagName("auth").length === 0) {
                 // There are no matching SASL mechanisms and also no legacy
                 // auth available.
                 this._no_auth_received(_callback);
@@ -3943,6 +3965,12 @@ Strophe.Connection.prototype = {
         }
         if (this.do_authentication !== false) {
             this.authenticate(matched);
+        }
+
+        if (this.customSessionRequest) {
+            this.authenticated = true;
+            this._changeConnectStatus(Strophe.Status.CONNECTED, null);
+            this._proto._send();
         }
     },
 
@@ -5137,27 +5165,33 @@ Strophe.Bosh.prototype = {
      *
      *  Creates and sends the Request that initializes the BOSH connection.
      */
-    _connect: function (wait, hold, route) {
+    _connect: function (wait, hold, route, customBody) {
         this.wait = wait || this.wait;
         this.hold = hold || this.hold;
         this.errors = 0;
 
-        // build the body tag
-        var body = this._buildBody().attrs({
-            to: this._conn.domain,
-            "xml:lang": "en",
-            wait: this.wait,
-            hold: this.hold,
-            content: "text/xml; charset=utf-8",
-            ver: "1.6",
-            "xmpp:version": "1.0",
-            "xmlns:xmpp": Strophe.NS.BOSH
-        });
+        var body;
+        if (customBody) {
+          body = customBody;
+          this.rid++;
+        } else {
+          // build the body tag
+          body = this._buildBody().attrs({
+              to: this._conn.domain,
+              "xml:lang": "en",
+              wait: this.wait,
+              hold: this.hold,
+              content: "text/xml; charset=utf-8",
+              ver: "1.6",
+              "xmpp:version": "1.0",
+              "xmlns:xmpp": Strophe.NS.BOSH
+          });
 
-        if(route){
-            body.attrs({
-                route: route
-            });
+          if(route){
+              body.attrs({
+                  route: route
+              });
+          }
         }
 
         var _connect_cb = this._conn._connect_cb;
